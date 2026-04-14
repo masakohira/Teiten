@@ -516,6 +516,13 @@ function loadCounts() {
   try { const s = localStorage.getItem('teiten_counts'); if (s) return JSON.parse(s); } catch(e) {}
   return null;
 }
+function saveWeek(w) {
+  try { localStorage.setItem('teiten_week', String(w)); } catch(e) {}
+}
+function loadWeek() {
+  try { const s = localStorage.getItem('teiten_week'); return s ? parseInt(s, 10) : null; } catch(e) {}
+  return null;
+}
 
 const _saved = loadCounts();
 ALL_DISEASES.forEach(d => {
@@ -526,6 +533,23 @@ function getWeekNumber() {
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 1);
   return Math.ceil((now - start) / (1000 * 60 * 60 * 24 * 7));
+}
+
+// 週またぎチェック
+function checkWeekChange() {
+  const currentWeek = getWeekNumber();
+  const savedWeek = loadWeek();
+  const hasData = ALL_DISEASES.some(d => totalDisease(d.id) > 0);
+
+  if (savedWeek !== null && savedWeek !== currentWeek && hasData) {
+    const msg = '第' + savedWeek + '週のデータが残っています。\nリセットしますか？\n\n「キャンセル」を押すとデータを残したまま続けられます。';
+    if (confirm(msg)) {
+      ALL_DISEASES.forEach(d => { counts[d.id] = { male: {}, female: {} }; });
+      saveCounts();
+      showToast('第' + savedWeek + '週のデータをリセットしました');
+    }
+  }
+  saveWeek(currentWeek);
 }
 
 function totalBySex(id, sex) {
@@ -820,6 +844,7 @@ function showToast(msg) {
   toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 1800);
 }
 
+checkWeekChange();
 renderAll();
 </script>
 </body>
