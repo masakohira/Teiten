@@ -531,8 +531,13 @@ ALL_DISEASES.forEach(d => {
 
 function getWeekNumber() {
   const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 1);
-  return Math.ceil((now - start) / (1000 * 60 * 60 * 24 * 7));
+  // 月曜始まりの週番号（感染症サーベイランス準拠）
+  const jan1 = new Date(now.getFullYear(), 0, 1);
+  const jan1Day = jan1.getDay() || 7; // 日曜=7に変換
+  const mondayOfWeek1 = new Date(jan1);
+  mondayOfWeek1.setDate(jan1.getDate() - (jan1Day - 1) + (jan1Day <= 4 ? 0 : 7));
+  const diff = now - mondayOfWeek1;
+  return Math.floor(diff / (1000 * 60 * 60 * 24 * 7)) + 1;
 }
 
 // 週またぎチェック（月曜日のみ）
