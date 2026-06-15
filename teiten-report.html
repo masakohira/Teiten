@@ -545,12 +545,22 @@ function checkWeekChange() {
   if (isMonday && savedWeek !== null && savedWeek !== currentWeek && hasData) {
     const msg = '第' + savedWeek + '週のデータが残っています。\nリセットしますか？\n\n「キャンセル」を押すとデータを残したまま続けられます。';
     if (confirm(msg)) {
+      // リセット前にバックアップ保存
+      try {
+        const backup = { week: savedWeek, data: JSON.parse(JSON.stringify(counts)) };
+        localStorage.setItem('teiten_backup', JSON.stringify(backup));
+      } catch(e) {}
       ALL_DISEASES.forEach(d => { counts[d.id] = { male: {}, female: {} }; });
       saveCounts();
       showToast('第' + savedWeek + '週のデータをリセットしました');
     }
   }
   saveWeek(currentWeek);
+}
+
+function loadBackup() {
+  try { const s = localStorage.getItem('teiten_backup'); return s ? JSON.parse(s) : null; } catch(e) {}
+  return null;
 }
 
 function totalBySex(id, sex) {
@@ -798,15 +808,58 @@ function buildText() {
 function renderExport() {
   const container = document.getElementById('exportContent');
   const hasData = ALL_DISEASES.some(function(d){ return totalDisease(d.id) > 0; });
-  if (!hasData) {
-    container.innerHTML = '<div class="empty-msg">まだ記録がありません</div>';
-    return;
+  const backup = loadBackup();
+
+  let html = '';
+
+  // 今週分
+  if (hasData) {
+    const text = buildText();
+    html += '<div class="export-box"><h3>📋 今週（第' + getWeekNumber() + '週）</h3>' +
+      '<pre style="font-size:11px;line-height:1.8;color:#374151;white-space:pre-wrap;">' + text + '</pre>' +
+      '<button class="copy-btn" onclick="doCopy()">📋 コピーする</button></div>';
+  } else {
+    html += '<div class="empty-msg">今週はまだ記録がありません</div>';
   }
-  const text = buildText();
-  container.innerHTML =
-    '<div class="export-box"><h3>\uD83D\uDCCB コピー用テキスト</h3>' +
-    '<pre style="font-size:11px;line-height:1.8;color:#374151;white-space:pre-wrap;">' + text + '</pre>' +
-    '<button class="copy-btn" onclick="doCopy()">\uD83D\uDCCB コピーする</button></div>';
+
+  // 先週バックアップ
+  if (backup) {
+    const bText = buildBackupText(backup);
+    html += '<div class="export-box" style="border-top:2px solid var(--border);margin-top:4px;">' +
+      '<h3 style="color:var(--text2)">📂 先週（第' + backup.week + '週）のバックアップ</h3>' +
+      '<pre style="font-size:11px;line-height:1.8;color:#374151;white-space:pre-wrap;">' + bText + '</pre>' +
+      '<button class="copy-btn" style="background:var(--text2);" onclick="doCopyBackup()">📋 先週分をコピー</button></div>';
+  }
+
+  container.innerHTML = html;
+}
+
+function buildBackupText(backup) {
+  let text = '【定点報告 第' + backup.week + '週】（バックアップ）\n\n';
+  ALL_DISEASES.forEach(function(d) {
+    const dc = backup.data[d.id];
+    if (!dc) return;
+    const totalM = Object.values(dc.male || {}).reduce(function(a,b){return a+b;}, 0);
+    const totalF = Object.values(dc.female || {}).reduce(function(a,b){return a+b;}, 0);
+    if (totalM + totalF === 0) return;
+    text += '■ ' + d.name + '（男' + totalM + '人 / 女' + totalF + '人 / 計' + (totalM+totalF) + '人）\n';
+    const ageGroups = getAgeGroups(d.id);
+    ageGroups.forEach(function(age){
+      const m = (dc.male || {})[age] || 0;
+      const f = (dc.female || {})[age] || 0;
+      if (m + f > 0) text += '  ' + age + ': 男' + m + ' 女' + f + '\n';
+    });
+    text += '\n';
+  });
+  return text;
+}
+
+function doCopyBackup() {
+  const backup = loadBackup();
+  if (!backup) return;
+  navigator.clipboard.writeText(buildBackupText(backup)).then(function(){
+    showToast('✓ 先週分をコピーしました');
+  }).catch(function(){ showToast('コピーに失敗しました'); });
 }
 
 function doCopy() {
@@ -817,13 +870,22 @@ function doCopy() {
 
 function resetAll() {
   if (!confirm('今週のデータを全て削除しますか？')) return;
+  // バックアップ保存
+  const currentWeek = getWeekNumber();
+  const hasData = ALL_DISEASES.some(function(d){ return totalDisease(d.id) > 0; });
+  if (hasData) {
+    try {
+      const backup = { week: currentWeek, data: JSON.parse(JSON.stringify(counts)) };
+      localStorage.setItem('teiten_backup', JSON.stringify(backup));
+    } catch(e) {}
+  }
   ALL_DISEASES.forEach(function(d){ counts[d.id] = { male: {}, female: {} }; });
   saveCounts();
   selectedDisease = null; selectedSex = null; lastAction = null;
   document.getElementById('inputPanel').style.display = 'none';
   document.getElementById('undoBtn').style.display = 'none';
   renderAll();
-  showToast('リセットしました');
+  showToast('リセットしました（バックアップ保存済み）');
 }
 
 function switchTab(name) {
