@@ -538,15 +538,13 @@ function getWeekNumber() {
 // 週またぎチェック（月曜日のみ）
 function checkWeekChange() {
   const now = new Date();
-  const isMonday = now.getDay() === 1;
   const currentWeek = getWeekNumber();
   const savedWeek = loadWeek();
   const hasData = ALL_DISEASES.some(d => totalDisease(d.id) > 0);
 
-  if (isMonday && savedWeek !== null && savedWeek !== currentWeek && hasData) {
+  if (savedWeek !== null && savedWeek !== currentWeek && hasData) {
     const msg = '第' + savedWeek + '週のデータが残っています。\nリセットしますか？\n\n「キャンセル」を押すとデータを残したまま続けられます。';
     if (confirm(msg)) {
-      // リセット前にバックアップ保存
       try {
         const backup = { week: savedWeek, data: JSON.parse(JSON.stringify(counts)) };
         localStorage.setItem('teiten_backup', JSON.stringify(backup));
