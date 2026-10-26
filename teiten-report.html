@@ -511,11 +511,18 @@ function loadCounts() {
   try { const s = localStorage.getItem('teiten_counts'); if (s) return JSON.parse(s); } catch(e) {}
   return null;
 }
-function saveWeek(w) {
-  try { localStorage.setItem('teiten_week', String(w)); } catch(e) {}
+function getMondayStr() {
+  const now = new Date();
+  const day = now.getDay() || 7; // 日=7
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (day - 1));
+  return monday.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+function saveWeek() {
+  try { localStorage.setItem('teiten_week', getMondayStr()); } catch(e) {}
 }
 function loadWeek() {
-  try { const s = localStorage.getItem('teiten_week'); return s ? parseInt(s, 10) : null; } catch(e) {}
+  try { return localStorage.getItem('teiten_week') || null; } catch(e) {}
   return null;
 }
 
@@ -524,37 +531,39 @@ ALL_DISEASES.forEach(d => {
   counts[d.id] = (_saved && _saved[d.id]) ? _saved[d.id] : { male: {}, female: {} };
 });
 
-function getWeekNumber() {
-  const now = new Date();
-  // 月曜始まりの週番号（感染症サーベイランス準拠）
-  const jan1 = new Date(now.getFullYear(), 0, 1);
-  const jan1Day = jan1.getDay() || 7; // 日曜=7に変換
+function getWeekNumberFromDate(date) {
+  const jan1 = new Date(date.getFullYear(), 0, 1);
+  const jan1Day = jan1.getDay() || 7;
   const mondayOfWeek1 = new Date(jan1);
   mondayOfWeek1.setDate(jan1.getDate() - (jan1Day - 1) + (jan1Day <= 4 ? 0 : 7));
-  const diff = now - mondayOfWeek1;
+  const diff = date - mondayOfWeek1;
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 7)) + 1;
 }
+function getWeekNumber() {
+  return getWeekNumberFromDate(new Date());
+}
 
-// 週またぎチェック（月曜日のみ）
+// 週またぎチェック（週が変わっていれば何曜日でも）
 function checkWeekChange() {
-  const now = new Date();
-  const currentWeek = getWeekNumber();
-  const savedWeek = loadWeek();
+  const currentMonday = getMondayStr();
+  const savedMonday = loadWeek();
   const hasData = ALL_DISEASES.some(d => totalDisease(d.id) > 0);
 
-  if (savedWeek !== null && savedWeek !== currentWeek && hasData) {
-    const msg = '第' + savedWeek + '週のデータが残っています。\nリセットしますか？\n\n「キャンセル」を押すとデータを残したまま続けられます。';
+  if (savedMonday !== null && savedMonday !== currentMonday && hasData) {
+    // 保存された週番号を表示用に計算
+    const savedWeekNum = getWeekNumberFromDate(new Date(savedMonday));
+    const msg = '第' + savedWeekNum + '週（' + savedMonday + '週）のデータが残っています。\nリセットしますか？\n\n「キャンセル」を押すとデータを残したまま続けられます。';
     if (confirm(msg)) {
       try {
-        const backup = { week: savedWeek, data: JSON.parse(JSON.stringify(counts)) };
+        const backup = { week: savedWeekNum, monday: savedMonday, data: JSON.parse(JSON.stringify(counts)) };
         localStorage.setItem('teiten_backup', JSON.stringify(backup));
       } catch(e) {}
       ALL_DISEASES.forEach(d => { counts[d.id] = { male: {}, female: {} }; });
       saveCounts();
-      showToast('第' + savedWeek + '週のデータをリセットしました');
+      showToast('第' + savedWeekNum + '週のデータをリセットしました');
     }
   }
-  saveWeek(currentWeek);
+  saveWeek();
 }
 
 function loadBackup() {
@@ -871,10 +880,11 @@ function resetAll() {
   if (!confirm('今週のデータを全て削除しますか？')) return;
   // バックアップ保存
   const currentWeek = getWeekNumber();
+  const currentMonday = getMondayStr();
   const hasData = ALL_DISEASES.some(function(d){ return totalDisease(d.id) > 0; });
   if (hasData) {
     try {
-      const backup = { week: currentWeek, data: JSON.parse(JSON.stringify(counts)) };
+      const backup = { week: currentWeek, monday: currentMonday, data: JSON.parse(JSON.stringify(counts)) };
       localStorage.setItem('teiten_backup', JSON.stringify(backup));
     } catch(e) {}
   }
