@@ -516,7 +516,11 @@ function getMondayStr() {
   const day = now.getDay() || 7; // 日=7
   const monday = new Date(now);
   monday.setDate(now.getDate() - (day - 1));
-  return monday.toISOString().slice(0, 10); // YYYY-MM-DD
+  // ローカル日付で返す（toISOStringはUTCのためJST朝にズレる）
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, '0');
+  const d = String(monday.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + d;
 }
 function saveWeek() {
   try { localStorage.setItem('teiten_week', getMondayStr()); } catch(e) {}
